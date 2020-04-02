@@ -1,18 +1,22 @@
 mod chat;
+mod connection;
+mod path_utils;
+mod request;
 mod server;
 
 use chat::{Chat, Contacts, Message};
 use http::header::CONTENT_TYPE;
 use http::Method;
-use server::Server;
+use path_utils::match_path;
+use server::{Res, Server};
 use std::collections::{HashMap, HashSet};
 
-fn main() {
+fn main() -> Res<()> {
     let contacts: Contacts = serde_json::from_str(include_str!("contacts.json")).unwrap();
     let mut chats: HashMap<i64, Chat> = HashMap::new();
     let mut users: HashMap<i64, HashSet<i64>> = HashMap::new();
 
-    Server::new(|req, res| {
+    Server::new(move |req, res| {
         println!("req {:?} {:?}", req.method(), req.uri().to_string());
 
         match (req.method(), req.uri().path_and_query().unwrap().as_str()) {
@@ -81,65 +85,5 @@ fn main() {
 
         Ok(res.status(404).body(String::new())?)
     })
-    .listen("127.0.0.1:6000");
-}
-
-fn match_path(path: &str, pat: &str) -> Option<HashMap<String, String>> {
-    let split_path = path.split("?").collect::<Vec<&str>>();
-    let split_pat = pat.split("?").collect::<Vec<&str>>();
-
-    let mut vars = HashMap::new();
-
-    let is_same_len = split_path[0].split("/").count() == split_pat[0].split("/").count();
-    let is_path_match = is_same_len
-        && split_path[0]
-            .split("/")
-            .zip(split_pat[0].split("/"))
-            .all(|(a, b)| {
-                if b.starts_with("{") && b.ends_with("}") {
-                    let var_name = &b[1..b.len() - 1];
-                    vars.insert(var_name.to_string(), a.to_string());
-                    true
-                } else {
-                    a == b
-                }
-            });
-
-    let is_param_match = (split_path.len() == 1 && split_pat.len() == 1)
-        || (split_pat.len() > 1 && split_path.len() > 1 && {
-            let path_params = split_path[1]
-                .split("&")
-                .fold(HashMap::new(), |mut m, param| {
-                    let param = param.split("=").collect::<Vec<&str>>();
-                    m.insert(param[0], param[1]);
-                    m
-                });
-            let pat_params = split_pat[1]
-                .split("&")
-                .fold(HashMap::new(), |mut m, param| {
-                    let param = param.split("=").collect::<Vec<&str>>();
-                    m.insert(param[0], param[1]);
-                    m
-                });
-
-            pat_params.iter().all(|(k, v)| {
-                if let Some(val) = path_params.get(k) {
-                    if v.starts_with("{") && v.ends_with("}") {
-                        let var_name = &v[1..v.len() - 1];
-                        vars.insert(var_name.to_string(), val.to_string());
-                        true
-                    } else {
-                        path_params.get(k) == Some(v)
-                    }
-                } else {
-                    false
-                }
-            })
-        });
-
-    if is_path_match && is_param_match {
-        Some(vars)
-    } else {
-        None
-    }
+    .listen("127.0.0.1:6000")
 }

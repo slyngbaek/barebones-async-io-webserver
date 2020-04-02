@@ -26,6 +26,7 @@ impl Chat {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
+    pub id: String,
     pub source_user_id: i64,
     pub destination_user_id: i64,
     pub timestamp: i64,
